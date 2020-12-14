@@ -150,8 +150,50 @@ class G_cell(nn.Module):
             .requires_grad_()
         ))
 
+    def add_loss(self):
+        return 0
+
     def forward(self):
         W = torch.mm(self.W_down, self.W_up)
+        W -= W.max(dim=-1, keepdims=True)[0]
+        return W
+        
+
+class G_svd(nn.Module):
+    def __init__(self, N, H, gamma):
+        super().__init__()
+        self.N = N
+        self.H = H
+
+        self.U = nn.Parameter((
+            (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
+            .clone()
+            .detach()
+            .requires_grad_()
+        ))
+
+        self.V = nn.Parameter((
+            (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
+            .clone()
+            .detach()
+            .requires_grad_()
+        ))
+
+        self.sigma = nn.Parameter((
+            (gamma * torch.randn(H, device=DEVICE, dtype=DTYPE))
+            .clone()
+            .detach()
+            .requires_grad_()
+        ))
+
+    def add_loss(self):
+        alpha = 1e-4
+        return alpha / self.H**2 * (torch.norm(self.U.T @ self.U - torch.eye(self.H, self.H), p='fro')**2 + \
+            torch.norm(self.V @ self.V.T - torch.eye(self.H, self.H), p='fro')**2)
+
+    def forward(self):
+        W = self.U * (self.sigma[None, :])**2
+        W = torch.mm(W, self.V)
         W -= W.max(dim=-1, keepdims=True)[0]
         return W
 
@@ -160,17 +202,22 @@ class G_fc(nn.Module):
     def __init__(self, N, H, gamma):
         super().__init__()
         self.N = N
-        self.W_down1  = nn.Linear(N, 20 * H)#, bias=False)
-        self.W_down2 = nn.Linear(20 * H, 4 * H)#, bias=False)
-        self.W_down3 = nn.Linear(4 * H, H)#, bias=False)
-        self.W_up1 = nn.Linear(H, N)#, bias=False)
+        self.W_down1  = nn.Linear(N, 20 * H, bias=False)
+        self.W_down2 = nn.Linear(20 * H, 4 * H, bias=False)
+        self.W_down3 = nn.Linear(4 * H, H, bias=False)
+        self.W_up1 = nn.Linear(H, N, bias=False)
         #self.W_up2 = nn.Linear(4 * H, N, bias=False)
+        self._init_weights()
 
     def _init_weights(self):
         nn.init.xavier_uniform(self.W_down1.weight)
         nn.init.xavier_uniform(self.W_down2.weight)
+        nn.init.xavier_uniform(self.W_down3.weight)
         nn.init.xavier_uniform(self.W_up1.weight)
-        nn.init.xavier_uniform(self.W_up2.weight)
+        #nn.init.xavier_uniform(self.W_up2.weight)
+
+    def add_loss(self):
+        return 0
 
     def forward(self):
         vs = torch.eye(self.N, self.N)
@@ -180,10 +227,10 @@ class G_fc(nn.Module):
                     self.W_down1(vs)
                     ))))
         W = self.W_up1(W_down)
+
+        W -= W.max(dim=-1, keepdims=True)[0]
         
         return W
-
-
 
 
 class Cell(object):
@@ -215,22 +262,15 @@ class Cell(object):
 
         N = A.shape[0]
         gamma = np.sqrt(2 / (N + H))
-        # self.W_down = (
-        #     (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
-        #     .clone()
-        #     .detach()
-        #     .requires_grad_()
-        # )
-        # self.W_up = (
-        #     (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
-        #     .clone()
-        #     .detach()
-        #     .requires_grad_()
-        # )
+
         if g_type == 'cell':
             self.g = G_cell(N, H, gamma)
-        if g_type == 'fc':
+        elif g_type == 'fc':
             self.g = G_fc(N, H, gamma)
+        elif g_type == 'svd':
+            self.g = G_svd(N, H, gamma)
+        else:
+            raise NameError
 
         if loss_fn is not None:
             self.loss_fn = loss_fn
@@ -279,7 +319,7 @@ class Cell(object):
 
     def _closure(self):
         W = self.get_W()
-        loss = self.loss_fn(W=W, A=self.A, num_edges=self.num_edges)
+        loss = self.loss_fn(W=W, A=self.A, num_edges=self.num_edges) + self.g.add_loss()
         self._optimizer.zero_grad()
         loss.backward()
         return loss

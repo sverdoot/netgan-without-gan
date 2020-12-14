@@ -161,7 +161,7 @@ def train_val_test_split_adjacency(A, p_val=0.10, p_test=0.05, seed=0, neg_mul=1
     assert p_val + p_test > 0
     assert A.max() == 1  # no weights
     assert A.min() == 0  # no negative edges
-    #assert A.diagonal().sum() == 0  # no self-loops
+    assert A.diagonal().sum() == 0  # no self-loops
     #assert not np.any(A.sum(0).A1 + A.sum(1).A1 == 0)  # no dangling nodes
 
     is_undirected = (A != A.T).nnz == 0
