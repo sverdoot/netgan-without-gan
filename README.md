@@ -4,20 +4,20 @@ From Random Walks to Low-Rank Approximations](https://www.tml.cs.uni-tuebingen.d
 
 ## Installation
 
-'''bat
+```bat
 git clone https://github.com/sverdoot/netgan-without-gan
-'''
+```
 
 ## Setup
 
-'''bat
+```bat
 cd [VENV]
 virtualenv netgan-without-gan
 source netgan-without-gan/bin/activate
-'''
+```
 
 back in repository dir:
-'''bat
+```bat
 python setup.py install
 pip install -r requirements.txt
-'''
+```
