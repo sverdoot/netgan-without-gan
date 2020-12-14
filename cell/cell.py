@@ -1,9 +1,12 @@
 import abc
 import time
+
 import numpy as np
+import scipy
 import torch
 from torch import nn
-from torch.nn import functional as F 
+from torch.nn import functional as F
+
 from cell import utils
 
 DEVICE = "cpu"
@@ -127,10 +130,8 @@ class LinkPredictionCriterion(Callback):
 
         elif self._patience >= self.max_patience:
             self.stop_training()
-
         else:
             self._patience += 1
-
         model._scores_matrix = self._best_scores_matrix
 
 
@@ -139,15 +140,15 @@ class G_cell(nn.Module):
         super().__init__()
         self.W_down = nn.Parameter((
             (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
-            .clone()
-            .detach()
-            .requires_grad_()
+                .clone()
+                .detach()
+                .requires_grad_()
         ))
         self.W_up = nn.Parameter((
             (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
-            .clone()
-            .detach()
-            .requires_grad_()
+                .clone()
+                .detach()
+                .requires_grad_()
         ))
 
     def add_loss(self):
@@ -157,7 +158,32 @@ class G_cell(nn.Module):
         W = torch.mm(self.W_down, self.W_up)
         W -= W.max(dim=-1, keepdims=True)[0]
         return W
-        
+
+
+class G_cell_local(nn.Module):
+    def __init__(self, N, H, gamma):
+        super().__init__()
+        self.W_down = nn.Parameter((
+            (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
+                .clone()
+                .detach()
+                .requires_grad_()
+        ))
+        self.W_up = nn.Parameter((
+            (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
+                .clone()
+                .detach()
+                .requires_grad_()
+        ))
+
+    def add_loss(self):
+        return 0
+
+    def forward(self):
+        W = torch.mm(self.W_down, self.W_up)
+        W -= W.max(dim=-1, keepdims=True)[0]
+        return W
+
 
 class G_svd(nn.Module):
     def __init__(self, N, H, gamma):
@@ -167,32 +193,32 @@ class G_svd(nn.Module):
 
         self.U = nn.Parameter((
             (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
-            .clone()
-            .detach()
-            .requires_grad_()
+                .clone()
+                .detach()
+                .requires_grad_()
         ))
 
         self.V = nn.Parameter((
             (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
-            .clone()
-            .detach()
-            .requires_grad_()
+                .clone()
+                .detach()
+                .requires_grad_()
         ))
 
         self.sigma = nn.Parameter((
             (gamma * torch.randn(H, device=DEVICE, dtype=DTYPE))
-            .clone()
-            .detach()
-            .requires_grad_()
+                .clone()
+                .detach()
+                .requires_grad_()
         ))
 
     def add_loss(self):
         alpha = 1e-4
-        return alpha / self.H**2 * (torch.norm(self.U.T @ self.U - torch.eye(self.H, self.H), p='fro')**2 + \
-            torch.norm(self.V @ self.V.T - torch.eye(self.H, self.H), p='fro')**2)
+        return alpha / self.H ** 2 * (torch.norm(self.U.T @ self.U - torch.eye(self.H, self.H), p='fro') ** 2 + \
+                                      torch.norm(self.V @ self.V.T - torch.eye(self.H, self.H), p='fro') ** 2)
 
     def forward(self):
-        W = self.U * (self.sigma[None, :])**2
+        W = self.U * (self.sigma[None, :]) ** 2
         W = torch.mm(W, self.V)
         W -= W.max(dim=-1, keepdims=True)[0]
         return W
@@ -202,11 +228,11 @@ class G_fc(nn.Module):
     def __init__(self, N, H, gamma):
         super().__init__()
         self.N = N
-        self.W_down1  = nn.Linear(N, 20 * H, bias=False)
+        self.W_down1 = nn.Linear(N, 20 * H, bias=False)
         self.W_down2 = nn.Linear(20 * H, 4 * H, bias=False)
         self.W_down3 = nn.Linear(4 * H, H, bias=False)
         self.W_up1 = nn.Linear(H, N, bias=False)
-        #self.W_up2 = nn.Linear(4 * H, N, bias=False)
+        # self.W_up2 = nn.Linear(4 * H, N, bias=False)
         self._init_weights()
 
     def _init_weights(self):
@@ -214,7 +240,7 @@ class G_fc(nn.Module):
         nn.init.xavier_uniform(self.W_down2.weight)
         nn.init.xavier_uniform(self.W_down3.weight)
         nn.init.xavier_uniform(self.W_up1.weight)
-        #nn.init.xavier_uniform(self.W_up2.weight)
+        # nn.init.xavier_uniform(self.W_up2.weight)
 
     def add_loss(self):
         return 0
@@ -225,11 +251,11 @@ class G_fc(nn.Module):
             self.W_down2(
                 F.relu(
                     self.W_down1(vs)
-                    ))))
+                ))))
         W = self.W_up1(W_down)
 
         W -= W.max(dim=-1, keepdims=True)[0]
-        
+
         return W
 
 
@@ -241,7 +267,7 @@ class Cell(object):
         the transition matrix is converted to an edge-independent model, from which the generated graphs are sampled.
         
     Attributes:
-        A(torch.tensor): The adjaceny matrix representing the target graph.
+        A(torch.tensor): The adjacency matrix representing the target graph.
         A_sparse(sp.csr.csr_matrix): The sparse representation of A.
         H(int): The maximum rank of W.
         loss_fn(function): The loss function minimized during the training process.
@@ -269,14 +295,18 @@ class Cell(object):
             self.g = G_fc(N, H, gamma)
         elif g_type == 'svd':
             self.g = G_svd(N, H, gamma)
+        elif g_type == 'local_cell':
+            self.g = G_cell_local(N, H, gamma)
         else:
             raise NameError
 
         if loss_fn is not None:
             self.loss_fn = loss_fn
-        else:
+        elif g_type != 'local_cell':
             self.loss_fn = self.built_in_loss_fn
-
+        else:
+            self.loss_fn = self.local_loss
+            self.mask = self._compute_mask_for_local_loss(self.A_sparse)
         self.total_time = 0
         self.scores_matrix_needs_update = True
 
@@ -316,6 +346,36 @@ class Cell(object):
         d = torch.log(torch.exp(W).sum(dim=-1, keepdims=True))
         loss = 0.5 * torch.sum(A * (d - W)) / num_edges
         return loss
+
+    def _compute_mask_for_local_loss(self, A_sparse):
+        """
+        Computes mask (indicator) for local_loss
+        Args:
+            A_sparse (scipy.sparse.csr_matrix) : adjacency matrix in compressed sparse row format
+
+        Returns:
+            mask (torch.tensor): resulting mask tensor
+        """
+        if not isinstance(A_sparse, scipy.sparse.csr.csr_matrix):
+            A_sparse = scipy.sparse.csr_matrix(A_sparse)
+        # тут будет долго считать, надо все кратчайшие пути рассчитать, судя по статье
+        dists = scipy.sparse.csgraph.shortest_path(csgraph=A_sparse, directed=False)
+        # маска вместо индикатора
+        return torch.tensor([dists[i, :] < i for i in range(dists.shape[0])], dtype=int)
+
+    def local_loss(self, W, A, num_edges):
+        """Computes the LOCAL weighted cross-entropy loss in logits with weight matrix.
+        Args:
+            W(torch.tensor): Logits of learnable (low rank) transition matrix.
+            A(torch.tensor): The adjaceny matrix representing the target graph.
+            num_edges(int): The total number of edges of the target graph.
+
+        Returns:
+            (torch.tensor): Loss at logits.
+        """
+        d = torch.log(torch.exp(W).sum(dim=-1, keepdims=True))
+        # тут хз плюс или минус надо ставить
+        return 0.5 * (torch.sum(A * (d - W)) / num_edges + torch.sum(self.mask * A * (d - W)) / num_edges)
 
     def _closure(self):
         W = self.get_W()
