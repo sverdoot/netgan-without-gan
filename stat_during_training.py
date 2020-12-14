@@ -14,7 +14,7 @@ from cell.graph_statistics import compute_graph_statistics
 EDGE_OVERLAP_LIMIT = {
     'cora_ml' : 0.7, 
     'citeseer' : 0.8,
-    'polblogs': 0.7
+    'polblogs': 0.42
 }
 MAX_STEPS = 150
 
