@@ -2,6 +2,8 @@ import abc
 import time
 import numpy as np
 import torch
+from torch import nn
+from torch.nn import functional as F 
 from cell import utils
 
 DEVICE = "cpu"
@@ -132,6 +134,58 @@ class LinkPredictionCriterion(Callback):
         model._scores_matrix = self._best_scores_matrix
 
 
+class G_cell(nn.Module):
+    def __init__(self, N, H, gamma):
+        super().__init__()
+        self.W_down = nn.Parameter((
+            (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
+            .clone()
+            .detach()
+            .requires_grad_()
+        ))
+        self.W_up = nn.Parameter((
+            (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
+            .clone()
+            .detach()
+            .requires_grad_()
+        ))
+
+    def forward(self):
+        W = torch.mm(self.W_down, self.W_up)
+        W -= W.max(dim=-1, keepdims=True)[0]
+        return W
+
+
+class G_fc(nn.Module):
+    def __init__(self, N, H, gamma):
+        super().__init__()
+        self.N = N
+        self.W_down1  = nn.Linear(N, 20 * H)#, bias=False)
+        self.W_down2 = nn.Linear(20 * H, 4 * H)#, bias=False)
+        self.W_down3 = nn.Linear(4 * H, H)#, bias=False)
+        self.W_up1 = nn.Linear(H, N)#, bias=False)
+        #self.W_up2 = nn.Linear(4 * H, N, bias=False)
+
+    def _init_weights(self):
+        nn.init.xavier_uniform(self.W_down1.weight)
+        nn.init.xavier_uniform(self.W_down2.weight)
+        nn.init.xavier_uniform(self.W_up1.weight)
+        nn.init.xavier_uniform(self.W_up2.weight)
+
+    def forward(self):
+        vs = torch.eye(self.N, self.N)
+        W_down = self.W_down3(F.relu(
+            self.W_down2(
+                F.relu(
+                    self.W_down1(vs)
+                    ))))
+        W = self.W_up1(W_down)
+        
+        return W
+
+
+
+
 class Cell(object):
     """Implements the Cross Entropy Low-rank Logits graph generative model as described our paper.
     
@@ -151,7 +205,7 @@ class Cell(object):
         W_up(torch.tensor): Matrix of shape(H,N) containing optimizable parameters.
     """
 
-    def __init__(self, A, H, loss_fn=None, callbacks=[]):
+    def __init__(self, A, H, loss_fn=None, g_type='cell', callbacks=[]):
         self.num_edges = A.sum() / 2
         self.A_sparse = A
         self.A = torch.tensor(A.toarray())
@@ -161,18 +215,22 @@ class Cell(object):
 
         N = A.shape[0]
         gamma = np.sqrt(2 / (N + H))
-        self.W_down = (
-            (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
-            .clone()
-            .detach()
-            .requires_grad_()
-        )
-        self.W_up = (
-            (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
-            .clone()
-            .detach()
-            .requires_grad_()
-        )
+        # self.W_down = (
+        #     (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
+        #     .clone()
+        #     .detach()
+        #     .requires_grad_()
+        # )
+        # self.W_up = (
+        #     (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
+        #     .clone()
+        #     .detach()
+        #     .requires_grad_()
+        # )
+        if g_type == 'cell':
+            self.g = G_cell(N, H, gamma)
+        if g_type == 'fc':
+            self.g = G_fc(N, H, gamma)
 
         if loss_fn is not None:
             self.loss_fn = loss_fn
@@ -199,8 +257,10 @@ class Cell(object):
         Returns:
             W(torch.tensor): Logits of the learned random walk transition matrix of shape(N,N)
         """
-        W = torch.mm(self.W_down, self.W_up)
-        W -= W.max(dim=-1, keepdims=True)[0]
+        # W = torch.mm(self.W_down, self.W_up)
+        # W -= W.max(dim=-1, keepdims=True)[0]
+        W = self.g()
+
         return W
 
     def built_in_loss_fn(self, W, A, num_edges):
@@ -234,7 +294,7 @@ class Cell(object):
     def train(self, steps, optimizer_fn, optimizer_args, EO_criterion=None):
         """Starts the train loop.
         """
-        self._optimizer = optimizer_fn([self.W_down, self.W_up], **optimizer_args)
+        self._optimizer = optimizer_fn(self.g.parameters(), **optimizer_args)
         self.steps = steps
         self.step_str_len = len(str(steps))
         self.scores_matrix_needs_update = True
@@ -268,4 +328,3 @@ class Cell(object):
 
         sampled_graph = utils.graph_from_scores(self._scores_matrix, self.num_edges)
         return sampled_graph
-        
