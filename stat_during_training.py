@@ -14,7 +14,7 @@ from cell.graph_statistics import compute_graph_statistics
 EDGE_OVERLAP_LIMIT = {
     'cora_ml' : 0.7, 
     'citeseer' : 0.8,
-    'polblogs': 0.42
+    'polblogs': 0.41
 }
 MAX_STEPS = 150
 
@@ -27,6 +27,7 @@ def parse_arguments():
     parser.add_argument('--g_type', type=str, default='all')
     parser.add_argument('--lr', type=float, default=0.1)
     parser.add_argument('--weight_decay', type=float, default=1e-6)
+    parser.add_argument('--graphic_mode', type=str, default='overlap', choices=['overlap', 'iterations'])
     parser.add_argument('--save_path', type=str, default='img/stat.png')
     args = parser.parse_args()
     return args
@@ -70,7 +71,10 @@ def main(args):
                 generated_graphs = [model.sample_graph() for _ in range(args.number_of_samples)]
                 current_overlap = np.mean([edge_overlap(model.A_sparse, gg) / model.num_edges for gg in generated_graphs])
                 stats = [compute_graph_statistics(gg) for gg in generated_graphs]
-                training_stat[model_name].append({'overlap': current_overlap, 'stats': stats})
+                if args.graphic_mode == 'overlap':
+                    training_stat[model_name].append({'overlap': current_overlap, 'stats': stats})
+                else:
+                    training_stat[model_name].append({'iteration': iter, 'stats': stats})
                 print(f"Iteration: {iter}; loss: {loss}; overlap: {current_overlap}")
 
 
@@ -88,7 +92,12 @@ def main(args):
         axs[stat_id // 3, stat_id % 3].set_xlabel('Edge overlap (in %)', fontsize=13)
         axs[stat_id // 3, stat_id % 3].axhline(y=original_stat[stat], color='g', linestyle='--', label='target')
         for model_name, model_statistic in training_stat.items():
-            axs[stat_id // 3, stat_id % 3].errorbar([100 * i['overlap'] for i in model_statistic], 
+            if args.graphic_mode == 'overlap':
+                xs = [100 * i['overlap'] for i in model_statistic]
+            else:
+                xs = [i['iteration'] for i in model_statistic]
+                
+            axs[stat_id // 3, stat_id % 3].errorbar(xs, 
                                                     [np.mean([j[stat] for j in i['stats']]) for i in model_statistic],
                                                     [np.std([j[stat] for j in i['stats']]) for i in model_statistic],
                                                     ls='none',
@@ -107,3 +116,4 @@ def main(args):
 if __name__ == '__main__':
     args = parse_arguments()
     main(args)
+
