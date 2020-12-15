@@ -3,6 +3,7 @@ import time
 
 import numpy as np
 import scipy
+import scipy.sparse as sp
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -160,31 +161,6 @@ class G_cell(nn.Module):
         return W
 
 
-class G_cell_local(nn.Module):
-    def __init__(self, N, H, gamma):
-        super().__init__()
-        self.W_down = nn.Parameter((
-            (gamma * torch.randn(N, H, device=DEVICE, dtype=DTYPE))
-                .clone()
-                .detach()
-                .requires_grad_()
-        ))
-        self.W_up = nn.Parameter((
-            (gamma * torch.randn(H, N, device=DEVICE, dtype=DTYPE))
-                .clone()
-                .detach()
-                .requires_grad_()
-        ))
-
-    def add_loss(self):
-        return 0
-
-    def forward(self):
-        W = torch.mm(self.W_down, self.W_up)
-        W -= W.max(dim=-1, keepdims=True)[0]
-        return W
-
-
 class G_svd(nn.Module):
     def __init__(self, N, H, gamma):
         super().__init__()
@@ -295,18 +271,17 @@ class Cell(object):
             self.g = G_fc(N, H, gamma)
         elif g_type == 'svd':
             self.g = G_svd(N, H, gamma)
-        elif g_type == 'local_cell':
-            self.g = G_cell_local(N, H, gamma)
         else:
             raise NameError
 
-        if loss_fn is not None:
-            self.loss_fn = loss_fn
-        elif g_type != 'local_cell':
-            self.loss_fn = self.built_in_loss_fn
-        else:
+        if loss_fn == 'local_cell':
             self.loss_fn = self.local_loss
             self.mask = self._compute_mask_for_local_loss(self.A_sparse)
+        elif loss_fn is not None:
+            self.loss_fn = loss_fn
+        else:
+            self.loss_fn = self.built_in_loss_fn
+
         self.total_time = 0
         self.scores_matrix_needs_update = True
 
@@ -327,8 +302,6 @@ class Cell(object):
         Returns:
             W(torch.tensor): Logits of the learned random walk transition matrix of shape(N,N)
         """
-        # W = torch.mm(self.W_down, self.W_up)
-        # W -= W.max(dim=-1, keepdims=True)[0]
         W = self.g()
 
         return W
@@ -358,10 +331,8 @@ class Cell(object):
         """
         if not isinstance(A_sparse, scipy.sparse.csr.csr_matrix):
             A_sparse = scipy.sparse.csr_matrix(A_sparse)
-        # тут будет долго считать, надо все кратчайшие пути рассчитать, судя по статье
-        dists = scipy.sparse.csgraph.shortest_path(csgraph=A_sparse, directed=False)
-        # маска вместо индикатора
-        return torch.tensor([dists[i, :] < i for i in range(dists.shape[0])], dtype=int)
+        dists = sp.csgraph.shortest_path(csgraph=A_sparse, directed=False)
+        return torch.tensor([dists[i, :] <= i for i in range(dists.shape[0])], dtype=int)
 
     def local_loss(self, W, A, num_edges):
         """Computes the LOCAL weighted cross-entropy loss in logits with weight matrix.
