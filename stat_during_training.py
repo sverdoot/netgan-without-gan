@@ -89,7 +89,10 @@ def main(args):
         'wedge_count', 'triangle_count', 'square_count']))):
 
         axs[stat_id // 3, stat_id % 3].set_ylabel(stat_name, fontsize=18)
-        axs[stat_id // 3, stat_id % 3].set_xlabel('Edge overlap (in %)', fontsize=13)
+        if args.graphic_mode == 'overlap':
+            axs[stat_id // 3, stat_id % 3].set_xlabel('Edge overlap (in %)', fontsize=13)
+        else:
+            axs[stat_id // 3, stat_id % 3].set_xlabel('Iterations', fontsize=13)
         axs[stat_id // 3, stat_id % 3].axhline(y=original_stat[stat], color='g', linestyle='--', label='target')
         for model_name, model_statistic in training_stat.items():
             if args.graphic_mode == 'overlap':
