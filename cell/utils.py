@@ -185,7 +185,7 @@ def train_val_test_split_adjacency(A, p_val=0.10, p_test=0.05, seed=0, neg_mul=1
     # hold some edges so each node appears at least once
     if every_node:
         if connected:
-            assert connected_components(A)[0] == 1  # make sure original graph is connected
+            #assert connected_components(A)[0] == 1  # make sure original graph is connected
             A_hold = minimum_spanning_tree(A)
         else:
             A.eliminate_zeros()  # makes sure A.tolil().rows contains only indices of non-zero elements

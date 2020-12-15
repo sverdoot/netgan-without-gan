@@ -333,6 +333,7 @@ class Cell(object):
             A_sparse = scipy.sparse.csr_matrix(A_sparse)
         dists = sp.csgraph.shortest_path(csgraph=A_sparse, directed=False)
         return torch.tensor([dists[i, :] <= i for i in range(dists.shape[0])], dtype=int)
+        #return torch.tensor(dists <= 10, dtype=int)
 
     def local_loss(self, W, A, num_edges):
         """Computes the LOCAL weighted cross-entropy loss in logits with weight matrix.
