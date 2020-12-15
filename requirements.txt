@@ -6,3 +6,4 @@ torch
 networkx
 numba
 powerlaw
+tabulate
