@@ -3,7 +3,6 @@ This repository contains Pytorch implementation of the paper [NetGAN without GAN
 From Random Walks to Low-Rank Approximations](https://www.tml.cs.uni-tuebingen.de/team/luxburg/publications/RensburgLuxburg_Netgan_without_Gan2020.pdf) and additional experiments of low-rank approximation of transformation matrix of random walks through graph.
 
 ## Table of content:
-  - [Table of content:](#table-of-content)
   - [Installation](#installation)
   - [Setup](#setup)
   - [Usage](#usage)
