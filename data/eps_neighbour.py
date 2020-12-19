@@ -34,4 +34,3 @@ if __name__ == '__main__':
     loader['adj_shape'] = adj.shape
     loader['coos'] = coos.numpy()
     np.savez(Path(Path(__file__).parent, args.save_name), **loader)
-

@@ -1,6 +1,3 @@
-
-"""Graph statistics are implemented here."""
-
 import numpy as np
 import scipy.sparse as sp
 import networkx as nx

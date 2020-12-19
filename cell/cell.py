@@ -17,7 +17,6 @@ DTYPE = torch.float32
 
 class Callback(abc.ABC):
     """Abstract Class to customize train loops.
-    Applications include logging, printing or the implementation of stopping conditions.
     Attributes:
         invoke_every(int): The number of calls required to invoke the Callback once.
     """
@@ -35,7 +34,6 @@ class Callback(abc.ABC):
 
     @abc.abstractmethod
     def invoke(self):
-        """This abstract method is intended to implement the behaviour of classes derived from Callback."""
         pass
 
 
@@ -138,6 +136,15 @@ class LinkPredictionCriterion(Callback):
 
 
 class StatisticCollector(Callback):
+    """Tracks graph statistics.
+    Attributes:
+        invoke_every(int): The number of calls required to invoke the Callback once.
+        A(sp.csr_matrix): input graph.
+        test_ones(np.ndarray): Test ones for link prediction.
+        test_zeros(np.ndarray): Test zeros for link prediction.
+        graphic_mode(str): x-axis for the graph plotting.
+        n_samples(int): number of generated graphs for averaging
+    """
     def __init__(self, invoke_every, A, test_ones, test_zeros, graphic_mode='overlap', n_samples=5):
         super().__init__(invoke_every)
         self.invoke_every = invoke_every
@@ -149,6 +156,11 @@ class StatisticCollector(Callback):
         self.training_stat = []
 
     def invoke(self, loss, model):
+        """Evaluates the link prediction performance and collect graph statistics.
+        Args:
+            loss(float): The latest loss value - not needed.
+            model(Cell): The instance of the model being trained.
+        """
         model.update_scores_matrix()
         roc_auc, avg_prec = utils.link_prediction_performance(scores_matrix=model._scores_matrix, 
                                 val_ones=self.test_ones, 
@@ -169,6 +181,12 @@ class StatisticCollector(Callback):
 
 
 class G_cell(nn.Module):
+    """Model to hold originally proposed low rank decomposition.
+    Attributes:
+        N(int) - number of vertices.
+        H(int) - rank.
+        gamma(float) - cofficient for initialization. 
+    """
     def __init__(self, N, H, gamma):
         super().__init__()
         self.W_down = nn.Parameter((
@@ -194,6 +212,12 @@ class G_cell(nn.Module):
 
 
 class G_svd(nn.Module):
+    """Model to hold low rank SVD decomposition.
+    Attributes:
+        N(int) - number of vertices.
+        H(int) - rank.
+        gamma(float) - cofficient for initialization. 
+    """
     def __init__(self, N, H, gamma):
         super().__init__()
         self.N = N
@@ -233,6 +257,12 @@ class G_svd(nn.Module):
 
 
 class G_fc(nn.Module):
+    """Model to hold nonlinear low rank decomposition.
+    Attributes:
+        N(int) - number of vertices.
+        H(int) - rank.
+        gamma(float) - cofficient for initialization. 
+    """
     def __init__(self, N, H, gamma):
         super().__init__()
         self.N = N
@@ -240,7 +270,7 @@ class G_fc(nn.Module):
         self.W_down2 = nn.Linear(20 * H, 4 * H, bias=False)
         self.W_down3 = nn.Linear(4 * H, H, bias=False)
         self.W_up1 = nn.Linear(H, N, bias=False)
-        # self.W_up2 = nn.Linear(4 * H, N, bias=False)
+
         self._init_weights()
 
     def _init_weights(self):
@@ -248,7 +278,6 @@ class G_fc(nn.Module):
         nn.init.xavier_uniform(self.W_down2.weight)
         nn.init.xavier_uniform(self.W_down3.weight)
         nn.init.xavier_uniform(self.W_up1.weight)
-        # nn.init.xavier_uniform(self.W_up2.weight)
 
     def add_loss(self):
         return 0
@@ -268,12 +297,8 @@ class G_fc(nn.Module):
 
 
 class Cell(object):
-    """Implements the Cross Entropy Low-rank Logits graph generative model as described our paper.
-    
-        We approximate the random walk transition matrix of the target graph A over all transition matrices that
-        can be expressed by low-rank logits. Approximation is done with respect to the cross-entropy loss. Next, 
-        the transition matrix is converted to an edge-independent model, from which the generated graphs are sampled.
-        
+    """Implements the Cross Entropy Low-rank Logits graph generative model.
+
     Attributes:
         A(torch.tensor): The adjacency matrix representing the target graph.
         A_sparse(sp.csr.csr_matrix): The sparse representation of A.
@@ -282,8 +307,6 @@ class Cell(object):
         callbacks(list): A list containing instances of classes derived from Callback.
         step(int): Keeps track of the actual training step.
         num_edges(int): The total number of edges in A.
-        W_down(torch.tensor): Matrix of shape(N,H) containing optimizable parameters.
-        W_up(torch.tensor): Matrix of shape(H,N) containing optimizable parameters.
     """
 
     def __init__(self, A, H, loss_fn=None, g_type='cell', callbacks=[]):
@@ -327,9 +350,6 @@ class Cell(object):
 
     def get_W(self):
         """Computes the logits of the learned random walk transition matrix.
-        
-        Note that we are later interested in row-wise softmax of W.
-        Thus, we subtract each row's maximum to improve numerical stability.
         
         Returns:
             W(torch.tensor): Logits of the learned random walk transition matrix of shape(N,N)

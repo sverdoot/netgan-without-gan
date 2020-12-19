@@ -14,8 +14,7 @@ def load_npz(file_name):
         Name of the file to load.
     Returns
     -------
-    sparse_graph : gust.SparseGraph
-        Graph in sparse matrix format.
+    sparse_graph
     """
     if not file_name.endswith('.npz'):
         file_name += '.npz'
@@ -35,35 +34,6 @@ def load_npz(file_name):
     return adj_matrix, attr_matrix, labels
 
 
-# def load_npz(file_name):
-#     """Load a SparseGraph from a Numpy binary file.
-#     Parameters
-#     ----------
-#     file_name : str
-#         Name of the file to load.
-#     Returns
-#     -------
-#     sparse_graph : SparseGraph
-#         Graph in sparse matrix format.
-#     """
-#     if not file_name.endswith('.npz'):
-#         file_name += '.npz'
-#     with np.load(file_name, allow_pickle=True) as loader:
-#         loader = dict(loader)['arr_0'].item()
-#         adj_matrix = sp.csr_matrix((loader['adj_data'], loader['adj_indices'],
-#                                               loader['adj_indptr']), shape=loader['adj_shape'])
-
-#         if 'attr_data' in loader:
-#             attr_matrix = sp.csr_matrix((loader['attr_data'], loader['attr_indices'],
-#                                                    loader['attr_indptr']), shape=loader['attr_shape'])
-#         else:
-#             attr_matrix = None
-
-#         labels = loader.get('labels')
-
-#     return adj_matrix, attr_matrix, labels
-
-
 def largest_connected_components(adj, n_components=1):
     """Select the largest connected components in the graph.
     Parameters
@@ -74,8 +44,7 @@ def largest_connected_components(adj, n_components=1):
         Number of largest connected components to keep.
     Returns
     -------
-    sparse_graph : SparseGraph
-        Subgraph of the input graph where only the nodes in largest n_components are kept.
+    sparse_graph
     """
     _, component_indices = connected_components(adj)
     component_sizes = np.bincount(component_indices)
@@ -352,12 +321,10 @@ def scores_matrix_from_transition_matrix(transition_matrix, symmetric=True):
     """
     Compute the scores matrix from the transition matrix.
     Args:
-        transition_matrix (np.array, shape=(N,N)): Matrix whose entries (i,j) correspond to the probability of a 
-                                                   transition from node i to j.
+        transition_matrix (np.array, shape=(N,N)).
         symmetric (bool, default:True): If True, symmetrize the resulting scores matrix.
     Returns:
-        scores_matrix(sp.csr.csr_matrix, shape=(N, N)): Matrix whose entries (i,j) correspond to the weight of the 
-                                                        directed edge (i, j) in an edge-independent model.
+        scores_matrix(sp.csr.csr_matrix, shape=(N, N)).
     """
 
     N = transition_matrix.shape[0]
@@ -376,8 +343,7 @@ def graph_from_scores(scores_matrix, n_edges):
     Assemble a symmetric binary graph from the input score matrix. Ensures that there will be no singleton nodes.
     See the paper for details.
     Args:
-        scores_matrix (sp.csr.csr_matrix, shape=(N, N)): Matrix whose entries (i,j) correspond to the weight of the 
-                                                        directed edge (i, j) in an edge-independent model.
+        scores_matrix (sp.csr.csr_matrix, shape=(N, N))
         n_edges (int): The desired number of edges in the generated graph.
     Returns
     -------

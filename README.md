@@ -4,7 +4,7 @@ From Random Walks to Low-Rank Approximations](https://www.tml.cs.uni-tuebingen.d
 
 ## Table of content:
   - [Some results](#some-results)
-  - [Diractory structure](#directory-structure)
+  - [Repository structure](#repository-structure)
   - [Installation](#installation)
   - [Setup](#setup)
   - [Usage](#usage)
@@ -21,7 +21,7 @@ From Random Walks to Low-Rank Approximations](https://www.tml.cs.uni-tuebingen.d
 | CORA-ML |   246   |       1 | 5.68  | 2810   |      137719   |  3.93e+06 |           5247   |        34507   |           1.767 |  0.496 |                    0.939 |          -0.045 |                    0.114 | 5.271 |     1     |      1     | 1     |
 
 
-## Directory structure
+## Repository structure
 
 The structure of the project is flat, no informative nested directories. 
 
@@ -34,6 +34,10 @@ The structure of the project is flat, no informative nested directories.
 ```logs``` contains tables with results
 
 ```notebooks/demo.ipynb``` contains a range of experiments on different datasets
+
+```notebooks/eps_neighbour_graph.ipynb``` contains experiment with generated epsilon neughbourhood graph
+
+```notebooks/tabs.ipynb`` contains latex tables generator 
 
 
 ## Installation
@@ -101,7 +105,7 @@ python run_experiments.py \
   --eo_limit 0.5
 ```
 
-generate $\varepsilon$-neighbourhood graph:
+generate epsilon-neighbourhood graph:
 
 ```bat
 python data/eps_neighbour.py \
