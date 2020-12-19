@@ -41,7 +41,7 @@ def parse_arguments():
     parser.add_argument('--number_of_samples', type=int, default=5)
     parser.add_argument('--H', type=int, default=9)
     parser.add_argument('--g_type', type=str, default='all')
-    parser.add_argument('--lr', type=float, default=0.1)
+    parser.add_argument('--lr', type=float, default=0.05)
     parser.add_argument('--weight_decay', type=float, default=1e-6)
     parser.add_argument('--graphic_mode', type=str, default='overlap', choices=['overlap', 'iterations'])
     parser.add_argument('--fig_path', type=str, default=None)
