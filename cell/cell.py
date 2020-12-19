@@ -9,6 +9,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from cell import utils
+from cell.graph_statistics import compute_graph_statistics
 
 DEVICE = "cpu"
 DTYPE = torch.float32
@@ -134,6 +135,37 @@ class LinkPredictionCriterion(Callback):
         else:
             self._patience += 1
         model._scores_matrix = self._best_scores_matrix
+
+
+class StatisticCollector(Callback):
+    def __init__(self, invoke_every, A, test_ones, test_zeros, graphic_mode='overlap', n_samples=5):
+        super().__init__(invoke_every)
+        self.invoke_every = invoke_every
+        self.test_ones = test_ones
+        self.test_zeros = test_zeros
+        self.n_samples = n_samples
+        self.A = A
+        self.graphic_mode = graphic_mode
+        self.training_stat = []
+
+    def invoke(self, loss, model):
+        model.update_scores_matrix()
+        roc_auc, avg_prec = utils.link_prediction_performance(scores_matrix=model._scores_matrix, 
+                                val_ones=self.test_ones, 
+                                val_zeros=self.test_zeros)
+
+        generated_graphs = [model.sample_graph() for _ in range(self.n_samples)]
+        current_overlaps = [utils.edge_overlap(self.A, gg) / model.num_edges for gg in generated_graphs]
+        current_overlap = np.mean(current_overlaps)
+        stats = [compute_graph_statistics(gg) for gg in generated_graphs]
+        for i, x in enumerate(stats):
+            x['ROC-AUC'] = roc_auc
+            x['AVG-PREC'] = avg_prec
+            x['EO'] = current_overlaps[i]
+        if self.graphic_mode == 'overlap':
+            self.training_stat.append({'overlap': current_overlap, 'stats': stats})
+        else:
+            self.training_stat.append({'iteration': model.step, 'stats': stats})
 
 
 class G_cell(nn.Module):
