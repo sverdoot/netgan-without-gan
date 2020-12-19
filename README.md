@@ -37,7 +37,7 @@ The structure of the project is flat, no informative nested directories.
 
 ```notebooks/eps_neighbour_graph.ipynb``` contains experiment with generated epsilon neughbourhood graph
 
-```notebooks/tabs.ipynb`` contains latex tables generator 
+```notebooks/tabs.ipynb``` contains latex tables generator 
 
 
 ## Installation
